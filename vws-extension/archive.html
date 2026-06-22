@@ -1,0 +1,124 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <title>viva tab</title>
+  <link rel="stylesheet" href="ui.css">
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>📦 viva tab</h1>
+      <p>插件负责 OneTab 式 UI，JSMod 负责 Vivaldi 工作区底层操作。</p>
+    </div>
+    <div class="top-actions">
+      <button id="refresh">刷新</button>
+      <button id="settings-toggle">设置</button>
+      <button id="cleanup" class="warn">清理临时项</button>
+      <button id="debug">复制调试信息</button>
+    </div>
+  </header>
+
+  <section id="settings-panel" class="settings-panel" style="display:none">
+    <div class="settings-head">
+      <h2>设置</h2>
+      <button id="settings-close" class="ghost">关闭</button>
+    </div>
+
+    <div class="setting-block">
+      <h3>浏览器启动时：</h3>
+      <label><input type="radio" name="startupOpen" value="true"> 自动打开归档页</label>
+      <label><input type="radio" name="startupOpen" value="false"> 不要自动打开归档页</label>
+    </div>
+
+    <div class="setting-block">
+      <h3>还原标签页时：</h3>
+      <label><input type="radio" name="restoreMode" value="remove"> 从列表中移除</label>
+      <div class="hint">恢复成功后自动删除该归档。</div>
+      <label><input type="radio" name="restoreMode" value="keep"> 保留在列表中</label>
+      <div class="hint">恢复后归档仍保留，可重复恢复。</div>
+      <label><input type="radio" name="restoreMode" value="mark"> 标记为已归档 / 已恢复</label>
+      <div class="hint">恢复后保留归档，并在标题前加“已恢复”。</div>
+    </div>
+
+    <div class="setting-block">
+      <h3>从归档页面还原单个标签页时：</h3>
+      <label><input type="radio" name="singleTabOpen" value="stay"> 打开标签页并停留在归档页面</label>
+      <label><input type="radio" name="singleTabOpen" value="switch"> 打开标签页并切换过去</label>
+      <div class="hint">点击时按住 Shift，会在新窗口中打开该标签页。</div>
+    </div>
+
+    <div class="setting-block">
+      <h3>还原一组标签页时：</h3>
+      <label><input type="radio" name="groupRestoreTarget" value="newWindow"> 在新窗口中打开这些标签页</label>
+      <label><input type="radio" name="groupRestoreTarget" value="currentWindow"> 在当前窗口中打开这些标签页</label>
+    </div>
+
+    <div class="setting-block">
+      <h3>在网页中点击右键以访问归档上下文菜单：</h3>
+      <label><input type="radio" name="contextMenuEnabled" value="true"> 已启用</label>
+      <label><input type="radio" name="contextMenuEnabled" value="false"> 已禁用</label>
+      <div class="hint">用于右键菜单快速打开归档页或收纳当前工作区。</div>
+    </div>
+
+    <div class="setting-block">
+      <h3>在首次打开归档标签页时立即节省内存 RAM：</h3>
+      <label><input type="radio" name="unloadOnRestore" value="false"> 已禁用</label>
+      <label><input type="radio" name="unloadOnRestore" value="true"> 已启用</label>
+      <div class="hint">启用后，后台打开的单个恢复标签页会尝试立即丢弃，等你访问时再加载。</div>
+    </div>
+
+    <div class="setting-block">
+      <h3>点击浏览器工具栏中的插件图标时：</h3>
+      <label><input type="radio" name="toolbarClick" value="popup"> 显示操作弹出窗口</label>
+      <label><input type="radio" name="toolbarClick" value="stash-active"> 自动收纳当前工作区</label>
+      <label><input type="radio" name="toolbarClick" value="open-archive"> 打开归档页面</label>
+      <div class="hint">MV3 插件仍会先显示小弹窗，弹窗会按此设置自动执行对应动作。</div>
+    </div>
+
+    <div class="setting-block">
+      <h3>重复项：</h3>
+      <label><input type="radio" name="allowDuplicates" value="true"> 允许重复项</label>
+      <label><input type="radio" name="allowDuplicates" value="false"> 静默拒绝重复项</label>
+      <div class="hint">关闭后，已存在于归档中的相同 URL 不会再次收纳。</div>
+    </div>
+
+    <div class="setting-block">
+      <h3>固定的标签页：</h3>
+      <label><input type="radio" name="includePinned" value="false"> 不要将固定标签页发送到归档</label>
+      <label><input type="radio" name="includePinned" value="true"> 允许将固定标签页发送到归档</label>
+    </div>
+
+    <div class="settings-actions">
+      <button id="settings-save" class="primary">保存设置</button>
+      <span id="settings-status" class="status"></span>
+    </div>
+  </section>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="panel">
+        <h2>工作区</h2>
+        <button id="stash-active" class="primary full">收纳当前工作区</button>
+        <div id="workspace-list" class="workspace-list"></div>
+      </section>
+      <section class="panel small">
+        <h2>连接状态</h2>
+        <div id="bridge-status" class="status">未连接</div>
+      </section>
+    </aside>
+
+    <section class="content">
+      <div class="content-head">
+        <h2 id="archive-heading">归档</h2>
+        <input id="search" placeholder="搜索归档或网址…">
+      </div>
+      <div id="archive-list" class="archive-list"></div>
+    </section>
+  </main>
+
+  <div id="toast" class="toast"></div>
+  <script src="bridge-client.js"></script>
+  <script src="archive.js"></script>
+</body>
+</html>
