@@ -2,8 +2,11 @@
   if (window.__VWS_BRIDGE_LOADED__) return;
   window.__VWS_BRIDGE_LOADED__ = true;
 
-  const MOD = 'v2.4.4-bridge';
+  const MOD = 'v2.4.5-bridge';
   const NAME_PREFIX = 'VWS:';
+  const EXTERNAL_LEASE_PREFIX = 'vws:external-lease:';
+  const EXTERNAL_LEASE_WAIT_MS = 160;
+  const EXTERNAL_LEASE_TTL_MS = 2500;
   const runStashOnce = VWSWorkspaceTabUtils.createSingleFlight();
   const log = (...a) => console.log('[VWS]', MOD, ...a);
   const state = { lastDebug: [] };
@@ -85,6 +88,24 @@
 
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  async function claimExternalRequest(message, sender) {
+    const requestKey = VWSWorkspaceTabUtils.externalRequestKey(message, sender);
+    const storageKey = EXTERNAL_LEASE_PREFIX + requestKey;
+    const now = Date.now();
+    const token = `${now}:${Math.random().toString(36).slice(2)}`;
+    try {
+      const existing = JSON.parse(localStorage.getItem(storageKey) || 'null');
+      if (existing && existing.expiresAt > now) return { won: false, requestKey };
+      localStorage.setItem(storageKey, JSON.stringify({ token, expiresAt: now + EXTERNAL_LEASE_TTL_MS }));
+      await sleep(EXTERNAL_LEASE_WAIT_MS);
+      const current = JSON.parse(localStorage.getItem(storageKey) || 'null');
+      return { won: current?.token === token, requestKey };
+    } catch (e) {
+      dbg('external lease unavailable; processing request locally', e.message || e);
+      return { won: true, requestKey };
+    }
+  }
 
   function callApiMaybe(fn, args = []) {
     return new Promise((resolve, reject) => {
@@ -557,7 +578,13 @@
   if (chrome.runtime && chrome.runtime.onMessageExternal) {
     chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
       if (!message || message.namespace !== 'VWS') return;
-      dispatch(message, sender?.tab?.windowId).then(sendResponse);
+      claimExternalRequest(message, sender).then(async lease => {
+        if (!lease.won) {
+          dbg('external request lease lost', { cmd: message.cmd, requestKey: lease.requestKey });
+          return;
+        }
+        sendResponse(await dispatch(message, sender?.tab?.windowId));
+      }, error => sendResponse({ ok: false, error: error.message || String(error) }));
       return true;
     });
   }

@@ -44,6 +44,16 @@
     return Number.isSafeInteger(requestedId) && requestedId >= 0 ? requestedId : null;
   }
 
+  function externalRequestKey(message, sender) {
+    return JSON.stringify([
+      sender?.id || '',
+      sender?.tab?.id ?? '',
+      sender?.tab?.windowId ?? '',
+      message?.cmd || '',
+      message?.workspaceId || '',
+    ]);
+  }
+
   function tabSummary(t) {
     return {
       id: normalizeTabId(t.id),
@@ -54,7 +64,7 @@
     };
   }
 
-  const api = { archiveOperationFilename, canonicalSessionId, createSingleFlight, normalizeTabId, resolveTargetWindowId, tabSummary };
+  const api = { archiveOperationFilename, canonicalSessionId, createSingleFlight, externalRequestKey, normalizeTabId, resolveTargetWindowId, tabSummary };
   if (typeof module === 'object' && module.exports) module.exports = api;
   globalThis.VWSWorkspaceTabUtils = api;
 })();

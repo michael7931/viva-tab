@@ -1,7 +1,20 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { archiveOperationFilename, canonicalSessionId, createSingleFlight, normalizeTabId, resolveTargetWindowId, tabSummary } = require('../vws-jsmod/workspace-tab-utils.js');
+const { archiveOperationFilename, canonicalSessionId, createSingleFlight, externalRequestKey, normalizeTabId, resolveTargetWindowId, tabSummary } = require('../vws-jsmod/workspace-tab-utils.js');
+
+test('gives every window context the same key for one external request', () => {
+  const message = { cmd: 'STASH_WORKSPACE', workspaceId: '1777528461398' };
+  const sender = { id: 'acgpcgjgfdngmkmjhhmbpeolklodipph', tab: { id: 320311296, windowId: 320311295 } };
+  assert.equal(externalRequestKey(message, sender), externalRequestKey(message, sender));
+});
+
+test('keeps external requests from different tabs separate', () => {
+  const message = { cmd: 'STASH_WORKSPACE', workspaceId: '1777528461398' };
+  const a = { id: 'acgpcgjgfdngmkmjhhmbpeolklodipph', tab: { id: 1, windowId: 2 } };
+  const b = { id: 'acgpcgjgfdngmkmjhhmbpeolklodipph', tab: { id: 3, windowId: 2 } };
+  assert.notEqual(externalRequestKey(message, a), externalRequestKey(message, b));
+});
 
 test('uses the external sender window over a caller-provided window', () => {
   assert.equal(resolveTargetWindowId(320298894, 320298870), 320298894);
