@@ -8,6 +8,20 @@
     return null;
   }
 
+  function createSingleFlight() {
+    const pending = new Map();
+    return (key, work) => {
+      if (pending.has(key)) return pending.get(key);
+      const operation = Promise.resolve().then(work);
+      pending.set(key, operation);
+      operation.then(
+        () => pending.delete(key),
+        () => pending.delete(key),
+      );
+      return operation;
+    };
+  }
+
   function tabSummary(t) {
     return {
       id: normalizeTabId(t.id),
@@ -18,7 +32,7 @@
     };
   }
 
-  const api = { normalizeTabId, tabSummary };
+  const api = { createSingleFlight, normalizeTabId, tabSummary };
   if (typeof module === 'object' && module.exports) module.exports = api;
   globalThis.VWSWorkspaceTabUtils = api;
 })();

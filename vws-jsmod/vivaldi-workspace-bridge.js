@@ -2,8 +2,9 @@
   if (window.__VWS_BRIDGE_LOADED__) return;
   window.__VWS_BRIDGE_LOADED__ = true;
 
-  const MOD = 'v2.4.1-bridge';
+  const MOD = 'v2.4.2-bridge';
   const NAME_PREFIX = 'VWS:';
+  const runStashOnce = VWSWorkspaceTabUtils.createSingleFlight();
   const log = (...a) => console.log('[VWS]', MOD, ...a);
   const state = { lastDebug: [] };
   const dbg = (...a) => { state.lastDebug.push(a.map(x => typeof x === 'string' ? x : JSON.stringify(x)).join(' ')); log(...a); };
@@ -302,7 +303,7 @@
     return urls;
   }
 
-  async function stashWorkspace({ workspaceId, closeTabs = true, includePinned = false, allowDuplicates = true, extensionId = '' } = {}) {
+  async function stashWorkspaceNow({ workspaceId, closeTabs = true, includePinned = false, allowDuplicates = true, extensionId = '' } = {}) {
     state.lastDebug = [];
     dbg('stashWorkspace start', { workspaceId, closeTabs, includePinned, allowDuplicates, extensionId });
     const snap = await collectWorkspaceSnapshot();
@@ -349,6 +350,11 @@
       try { await deleteSession(snap.temp.id); } catch (_) {}
       throw e;
     }
+  }
+
+  function stashWorkspace(options = {}) {
+    const key = String(options.workspaceId || 'active');
+    return runStashOnce(key, () => stashWorkspaceNow(options));
   }
 
   function parseArchiveName(name) {

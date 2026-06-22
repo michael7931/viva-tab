@@ -15,7 +15,7 @@ const DEFAULT_SETTINGS = {
   includePinned: false,
 };
 let settings = { ...DEFAULT_SETTINGS };
-let state = { workspaces: [], archives: [], query: '', selectedWorkspaceId: 'active', selectedWorkspaceName: '当前工作区', hiddenTabs: {} };
+let state = { workspaces: [], archives: [], query: '', selectedWorkspaceId: 'active', selectedWorkspaceName: '当前工作区', hiddenTabs: {}, stashInFlight: false };
 
 function toast(msg) {
   toastEl.textContent = msg;
@@ -77,6 +77,12 @@ function stashPayload() {
     allowDuplicates: settings.allowDuplicates,
     closeTabs: true,
   };
+}
+function setStashButtonsDisabled(disabled) {
+  document.querySelectorAll('#stash-active, [data-act="stash-workspace"]').forEach(button => {
+    button.disabled = disabled;
+    button.setAttribute('aria-busy', String(disabled));
+  });
 }
 
 async function loadAll(keepSelection = true) {
@@ -215,6 +221,9 @@ function renderArchives() {
 async function runAction(act, id, el) {
   const elArchiveId = el?.dataset?.archiveId || id;
   const elTabIndex = el?.dataset?.tabIndex;
+  const isStash = act === 'stash-active' || act === 'stash-workspace';
+  if (isStash && state.stashInFlight) { toast('收纳正在进行，请稍候'); return; }
+  if (isStash) { state.stashInFlight = true; setStashButtonsDisabled(true); }
   try {
     if (act === 'open-tab') {
       const ar = state.archives.find(x => Number(x.id) === Number(elArchiveId));
@@ -246,6 +255,9 @@ async function runAction(act, id, el) {
     if (act === 'restore-delete') { toast('恢复并删除中…'); await VWS.send('RESTORE_DELETE_ARCHIVE', { id: Number(id), newWindow: false }); await clearHiddenForArchive(Number(id)); toast('已恢复并删除'); await loadAll(true); return; }
     if (act === 'delete') { if (!confirm('确定删除这个归档？')) return; await VWS.send('DELETE_ARCHIVE', { id: Number(id) }); await clearHiddenForArchive(Number(id)); toast('已删除'); await loadAll(true); }
   } catch (e) { console.error(e); toast('失败：' + e.message); }
+  finally {
+    if (isStash) { state.stashInFlight = false; setStashButtonsDisabled(false); }
+  }
 }
 
 document.addEventListener('click', e => { const el = e.target.closest('[data-act]'); if (!el) return; e.preventDefault(); window.__vwsLastClickEvent = e; runAction(el.dataset.act, el.dataset.id, el); });
