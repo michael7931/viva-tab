@@ -59,13 +59,14 @@ bash install.sh
 
 ## 更新
 
-扩展和 JSMod 的版本需要保持同步。更新代码后：
+每次发版时，请根据变更范围执行对应操作：
 
-1. 在 `vivaldi://extensions` 中重新加载扩展。
-2. 重新运行 `vws-jsmod/install.sh` 覆盖安装 JSMod。
-3. 完全退出并重启 Vivaldi。
+| 变更范围 | 必须执行的操作 |
+| --- | --- |
+| `vws-extension/**` | 在 `vivaldi://extensions` 中重新加载扩展。 |
+| `vws-jsmod/**` | 重新运行 `bash vws-jsmod/install.sh` 覆盖安装 JSMod，然后完全退出并重启 Vivaldi。 |
 
-Vivaldi 本身升级后也可能覆盖 JSMod；若扩展提示无法连接 JSMod，请先重新运行安装脚本并重启浏览器。
+若同一版本同时修改两个目录，两个操作都必须执行。Vivaldi 本身升级后也可能覆盖 JSMod；此时即使扩展未变更，也需要重新运行安装脚本并重启浏览器。
 
 ## 项目结构
 

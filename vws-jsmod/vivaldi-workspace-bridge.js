@@ -2,7 +2,7 @@
   if (window.__VWS_BRIDGE_LOADED__) return;
   window.__VWS_BRIDGE_LOADED__ = true;
 
-  const MOD = 'v2.4.0-bridge';
+  const MOD = 'v2.4.1-bridge';
   const NAME_PREFIX = 'VWS:';
   const log = (...a) => console.log('[VWS]', MOD, ...a);
   const state = { lastDebug: [] };
@@ -273,15 +273,7 @@
     }
   }
 
-  function tabSummary(t) {
-    return {
-      id: t.id,
-      title: t.name || t.fixedName || t.url || 'Untitled',
-      url: t.url || '',
-      pinned: !!t.pinned,
-      index: t.index,
-    };
-  }
+  const tabSummary = t => VWSWorkspaceTabUtils.tabSummary(t);
 
   async function getWorkspaces() {
     state.lastDebug = [];
@@ -331,6 +323,9 @@
       }
       const ids = selectedTabs.map(t => t.id);
       dbg('selected workspace', { id: selected.id, name: selected.name, ids, filteredTabs: selectedTabs.length });
+      if ((selected.tabs || []).length && !ids.length) {
+        dbg('selected workspace tab IDs are not closable', (selected.tabs || []).map(t => t.id));
+      }
       if (!ids.length) throw new Error('该工作区没有可收纳标签，可能全部是固定标签或重复项');
       const all = await getAllSessions();
       const now = new Date();

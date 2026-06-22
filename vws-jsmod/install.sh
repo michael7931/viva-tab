@@ -12,6 +12,9 @@ WINDOW_HTML="$VIVALDI_RES/window.html"
 SCRIPT_NAME="vivaldi-workspace-bridge.js"
 SCRIPT_SRC="$(cd "$(dirname "$0")" && pwd)/$SCRIPT_NAME"
 SCRIPT_DST="$VIVALDI_RES/$SCRIPT_NAME"
+UTILS_NAME="workspace-tab-utils.js"
+UTILS_SRC="$(cd "$(dirname "$0")" && pwd)/$UTILS_NAME"
+UTILS_DST="$VIVALDI_RES/$UTILS_NAME"
 if [[ ! -f "$WINDOW_HTML" ]]; then
   echo "找不到 window.html: $WINDOW_HTML"
   exit 1
@@ -20,21 +23,25 @@ if [[ ! -f "$SCRIPT_SRC" ]]; then
   echo "找不到 $SCRIPT_SRC"
   exit 1
 fi
+if [[ ! -f "$UTILS_SRC" ]]; then
+  echo "找不到 $UTILS_SRC"
+  exit 1
+fi
 echo "安装到: $VIVALDI_RES"
+sudo cp "$UTILS_SRC" "$UTILS_DST"
 sudo cp "$SCRIPT_SRC" "$SCRIPT_DST"
-sudo python3 - "$WINDOW_HTML" "$SCRIPT_NAME" <<'PY'
+sudo python3 - "$WINDOW_HTML" "$UTILS_NAME" "$SCRIPT_NAME" <<'PY'
 import sys, re, pathlib
 html = pathlib.Path(sys.argv[1])
-script = sys.argv[2]
+scripts = sys.argv[2:]
 s = html.read_text(encoding='utf-8')
 # remove old VWS script tags only, preserve everything else
-s = re.sub(r'\s*<script[^>]+src=["\'][^"\']*vivaldi-workspace-(?:stash|bridge)[^"\']*\.js["\'][^>]*>\s*</script>\s*', '\n', s, flags=re.I)
-tag = f'<script src="{script}"></script>'
-if tag not in s:
-    if '</body>' in s:
-        s = s.replace('</body>', f'  {tag}\n</body>', 1)
-    else:
-        s += '\n' + tag + '\n'
+s = re.sub(r'\s*<script[^>]+src=["\'][^"\']*(?:vivaldi-workspace-(?:stash|bridge)|workspace-tab-utils)\.js["\'][^>]*>\s*</script>\s*', '\n', s, flags=re.I)
+tags = ''.join(f'  <script src="{script}"></script>\n' for script in scripts)
+if '</body>' in s:
+    s = s.replace('</body>', f'{tags}</body>', 1)
+else:
+    s += '\n' + tags
 html.write_text(s, encoding='utf-8')
 PY
 echo "完成。请完全退出 Vivaldi 后重新打开。"
