@@ -2,7 +2,7 @@
   if (window.__VWS_BRIDGE_LOADED__) return;
   window.__VWS_BRIDGE_LOADED__ = true;
 
-  const MOD = 'v2.4.2-bridge';
+  const MOD = 'v2.4.3-bridge';
   const NAME_PREFIX = 'VWS:';
   const runStashOnce = VWSWorkspaceTabUtils.createSingleFlight();
   const log = (...a) => console.log('[VWS]', MOD, ...a);
@@ -56,6 +56,23 @@
     dbg('addSessionAndFind', { ret, found: item && { id: item.id, name: item.name, tabs: item.tabs, windows: item.windows } });
     if (!item || typeof item.id !== 'number') throw new Error('创建 Session 成功但找不到新 Session ID');
     return item;
+  }
+
+  async function reconcileDuplicateArchive(filename, currentId) {
+    await sleep(120);
+    const all = await getAllSessions();
+    const canonicalId = VWSWorkspaceTabUtils.canonicalSessionId(all.items, filename);
+    if (canonicalId === null) return Number(currentId);
+    const duplicateIds = (all.items || [])
+      .filter(item => item.filename === filename)
+      .map(item => Number(item.id))
+      .filter(id => Number.isSafeInteger(id) && id >= 0 && id !== canonicalId);
+    for (const id of duplicateIds) {
+      try { await deleteSession(id); }
+      catch (e) { dbg('duplicate archive delete failed', { id, filename, error: e.message || String(e) }); }
+    }
+    if (Number(currentId) !== canonicalId) dbg('duplicate archive coalesced', { currentId, canonicalId, filename });
+    return canonicalId;
   }
 
   function normalWindows(wins) {
@@ -331,21 +348,23 @@
       const all = await getAllSessions();
       const now = new Date();
       const label = `${NAME_PREFIX}${selected.name} · ${ids.length}个标签页 · ${now.toLocaleString()}`;
+      const archiveFilename = VWSWorkspaceTabUtils.archiveOperationFilename(selected.id, ids, now.getTime());
       const archiveItem = await addSessionAndFind({
-        filename: 'vws-' + Date.now(),
+        filename: archiveFilename,
         name: label,
         parentId: all.rootId || snap.temp.rootId || 2,
         index: 0,
         owner: 'user',
         ids,
       });
+      const canonicalArchiveId = await reconcileDuplicateArchive(archiveFilename, archiveItem.id);
       try { await deleteSession(snap.temp.id); } catch (e) { dbg('temp delete failed', e.message || e); }
-      if (closeTabs) {
+      if (closeTabs && canonicalArchiveId === archiveItem.id) {
         await createNativeNewTabBeforeClose(ids);
         await removeTabs(ids);
       }
-      dbg('archive created', { id: archiveItem.id, tabs: archiveItem.tabs });
-      return { ok: true, archiveId: archiveItem.id, workspaceId: selected.id, workspaceName: selected.name, tabs: ids.length };
+      dbg('archive created', { id: canonicalArchiveId, tabs: archiveItem.tabs });
+      return { ok: true, archiveId: canonicalArchiveId, workspaceId: selected.id, workspaceName: selected.name, tabs: ids.length };
     } catch (e) {
       try { await deleteSession(snap.temp.id); } catch (_) {}
       throw e;

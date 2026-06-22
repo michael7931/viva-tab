@@ -1,7 +1,22 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { createSingleFlight, normalizeTabId, tabSummary } = require('../vws-jsmod/workspace-tab-utils.js');
+const { archiveOperationFilename, canonicalSessionId, createSingleFlight, normalizeTabId, tabSummary } = require('../vws-jsmod/workspace-tab-utils.js');
+
+test('gives concurrent stashes of the same workspace and tabs one session filename', () => {
+  assert.equal(
+    archiveOperationFilename('1777528461398', [42, 7], 12_345),
+    archiveOperationFilename('1777528461398', [7, 42], 19_999),
+  );
+});
+
+test('chooses the oldest session ID for duplicate archive filenames', () => {
+  assert.equal(canonicalSessionId([
+    { id: 594, filename: 'vws-op-1-7-42-1' },
+    { id: 593, filename: 'vws-op-1-7-42-1' },
+    { id: 592, filename: 'vws-op-other' },
+  ], 'vws-op-1-7-42-1'), 593);
+});
 
 test('coalesces concurrent operations for the same workspace', async () => {
   const run = createSingleFlight();
