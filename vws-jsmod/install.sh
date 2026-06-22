@@ -45,4 +45,4 @@ else:
 html.write_text(s, encoding='utf-8')
 PY
 echo "完成。请完全退出 Vivaldi 后重新打开。"
-echo "验证：vivaldi://inspect/#apps -> main.html -> Console 执行 window.vwsBridge.version"
+echo "验证：vivaldi://inspect/#apps -> mpogn.../window.html -> Console 执行 window.vwsBridge.version"

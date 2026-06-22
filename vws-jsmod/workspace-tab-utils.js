@@ -37,6 +37,13 @@
     return ids[0] ?? null;
   }
 
+  function resolveTargetWindowId(senderWindowId, requestedWindowId) {
+    const senderId = Number(senderWindowId);
+    if (Number.isSafeInteger(senderId) && senderId >= 0) return senderId;
+    const requestedId = Number(requestedWindowId);
+    return Number.isSafeInteger(requestedId) && requestedId >= 0 ? requestedId : null;
+  }
+
   function tabSummary(t) {
     return {
       id: normalizeTabId(t.id),
@@ -47,7 +54,7 @@
     };
   }
 
-  const api = { archiveOperationFilename, canonicalSessionId, createSingleFlight, normalizeTabId, tabSummary };
+  const api = { archiveOperationFilename, canonicalSessionId, createSingleFlight, normalizeTabId, resolveTargetWindowId, tabSummary };
   if (typeof module === 'object' && module.exports) module.exports = api;
   globalThis.VWSWorkspaceTabUtils = api;
 })();

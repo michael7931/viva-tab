@@ -2,7 +2,7 @@
   if (window.__VWS_BRIDGE_LOADED__) return;
   window.__VWS_BRIDGE_LOADED__ = true;
 
-  const MOD = 'v2.4.3-bridge';
+  const MOD = 'v2.4.4-bridge';
   const NAME_PREFIX = 'VWS:';
   const runStashOnce = VWSWorkspaceTabUtils.createSingleFlight();
   const log = (...a) => console.log('[VWS]', MOD, ...a);
@@ -22,7 +22,10 @@
   const getAllSessions = () => p(cb => vivaldi.sessionsPrivate.getAll(cb));
   const getContent = id => p(cb => vivaldi.sessionsPrivate.getContent(id, cb));
   const getWins = () => p(cb => chrome.windows.getAll({ populate: true }, cb));
-  const queryActive = () => p(cb => chrome.tabs.query({ active: true, currentWindow: true }, cb));
+  const queryActive = windowId => p(cb => chrome.tabs.query(
+    windowId ? { active: true, windowId } : { active: true, currentWindow: true },
+    cb,
+  ));
 
   async function deleteSession(id) {
     const tries = [
@@ -204,8 +207,8 @@
   }
 
 
-  async function createNativeNewTabBeforeClose(ids) {
-    const activeTabs = await queryActive().catch(() => []);
+  async function createNativeNewTabBeforeClose(ids, windowId) {
+    const activeTabs = await queryActive(windowId).catch(() => []);
     const activeTab = activeTabs[0];
     const activeTabId = activeTab && activeTab.id;
     if (!activeTabId || !ids.includes(activeTabId)) return;
@@ -293,17 +296,17 @@
 
   const tabSummary = t => VWSWorkspaceTabUtils.tabSummary(t);
 
-  async function getWorkspaces() {
+  async function getWorkspaces(targetWindowId) {
     state.lastDebug = [];
-    dbg('getWorkspaces start');
-    const snap = await collectWorkspaceSnapshot();
+    dbg('getWorkspaces start', { targetWindowId });
+    const snap = await collectWorkspaceSnapshot(targetWindowId);
     try { await deleteSession(snap.temp.id); } catch (e) { dbg('temp delete failed', e.message || e); }
     dbg('getWorkspaces done', snap.workspaces.map(w => ({ id: w.id, name: w.name, tabs: w.tabCount })));
     return { ok: true, workspaces: snap.workspaces };
   }
 
-  async function chooseActiveWorkspaceFromSnapshot(snap) {
-    const activeTabs = await queryActive().catch(() => []);
+  async function chooseActiveWorkspaceFromSnapshot(snap, windowId) {
+    const activeTabs = await queryActive(windowId).catch(() => []);
     const activeTabId = activeTabs[0] && activeTabs[0].id;
     let found = snap.workspaces.find(w => (w.tabs || []).some(t => t.id === activeTabId));
     if (!found) found = snap.workspaces[0];
@@ -320,16 +323,16 @@
     return urls;
   }
 
-  async function stashWorkspaceNow({ workspaceId, closeTabs = true, includePinned = false, allowDuplicates = true, extensionId = '' } = {}) {
+  async function stashWorkspaceNow({ workspaceId, targetWindowId = null, closeTabs = true, includePinned = false, allowDuplicates = true, extensionId = '' } = {}) {
     state.lastDebug = [];
-    dbg('stashWorkspace start', { workspaceId, closeTabs, includePinned, allowDuplicates, extensionId });
-    const snap = await collectWorkspaceSnapshot();
+    dbg('stashWorkspace start', { workspaceId, targetWindowId, closeTabs, includePinned, allowDuplicates, extensionId });
+    const snap = await collectWorkspaceSnapshot(targetWindowId);
     let selected;
     try {
       if (workspaceId && workspaceId !== 'active') {
         selected = snap.workspaces.find(w => String(w.id) === String(workspaceId));
       } else {
-        selected = await chooseActiveWorkspaceFromSnapshot(snap);
+        selected = await chooseActiveWorkspaceFromSnapshot(snap, snap.temp.activeWinId);
       }
       if (!selected) throw new Error('找不到指定工作区：' + workspaceId);
       let selectedTabs = (selected.tabs || []).filter(t => typeof t.id === 'number' && t.id >= 0);
@@ -360,7 +363,7 @@
       const canonicalArchiveId = await reconcileDuplicateArchive(archiveFilename, archiveItem.id);
       try { await deleteSession(snap.temp.id); } catch (e) { dbg('temp delete failed', e.message || e); }
       if (closeTabs && canonicalArchiveId === archiveItem.id) {
-        await createNativeNewTabBeforeClose(ids);
+        await createNativeNewTabBeforeClose(ids, snap.temp.activeWinId);
         await removeTabs(ids);
       }
       dbg('archive created', { id: canonicalArchiveId, tabs: archiveItem.tabs });
@@ -372,7 +375,7 @@
   }
 
   function stashWorkspace(options = {}) {
-    const key = String(options.workspaceId || 'active');
+    const key = `${options.targetWindowId || 'focused'}:${options.workspaceId || 'active'}`;
     return runStashOnce(key, () => stashWorkspaceNow(options));
   }
 
@@ -527,13 +530,14 @@
     return { ok: true, id: Number(id), name };
   }
 
-  async function handleCommand(message) {
+  async function handleCommand(message, senderWindowId = null) {
     if (!message || message.namespace !== 'VWS') return null;
     const cmd = message.cmd;
+    const targetWindowId = VWSWorkspaceTabUtils.resolveTargetWindowId(senderWindowId, message.targetWindowId);
     if (cmd === 'PING') return { ok: true, version: MOD };
-    if (cmd === 'GET_WORKSPACES') return getWorkspaces();
-    if (cmd === 'STASH_ACTIVE') return stashWorkspace({ workspaceId: 'active', closeTabs: message.closeTabs !== false, includePinned: !!message.includePinned, allowDuplicates: message.allowDuplicates !== false, extensionId: message.extensionId || '' });
-    if (cmd === 'STASH_WORKSPACE') return stashWorkspace({ workspaceId: message.workspaceId, closeTabs: message.closeTabs !== false, includePinned: !!message.includePinned, allowDuplicates: message.allowDuplicates !== false, extensionId: message.extensionId || '' });
+    if (cmd === 'GET_WORKSPACES') return getWorkspaces(targetWindowId);
+    if (cmd === 'STASH_ACTIVE') return stashWorkspace({ workspaceId: 'active', targetWindowId, closeTabs: message.closeTabs !== false, includePinned: !!message.includePinned, allowDuplicates: message.allowDuplicates !== false, extensionId: message.extensionId || '' });
+    if (cmd === 'STASH_WORKSPACE') return stashWorkspace({ workspaceId: message.workspaceId, targetWindowId, closeTabs: message.closeTabs !== false, includePinned: !!message.includePinned, allowDuplicates: message.allowDuplicates !== false, extensionId: message.extensionId || '' });
     if (cmd === 'GET_ARCHIVES') return getArchives();
     if (cmd === 'RESTORE_ARCHIVE') return openArchive({ id: message.id, removeAfter: false, targetWindowId: message.targetWindowId, newWindow: !!message.newWindow });
     if (cmd === 'RESTORE_DELETE_ARCHIVE') return openArchive({ id: message.id, removeAfter: true, targetWindowId: message.targetWindowId, newWindow: !!message.newWindow });
@@ -544,8 +548,8 @@
     throw new Error('未知命令：' + cmd);
   }
 
-  async function dispatch(message) {
-    try { return await handleCommand(message); }
+  async function dispatch(message, senderWindowId = null) {
+    try { return await handleCommand(message, senderWindowId); }
     catch (e) { console.error('[VWS] command error', message, e); return { ok: false, error: e.message || String(e), lastDebug: state.lastDebug }; }
   }
 
@@ -553,7 +557,7 @@
   if (chrome.runtime && chrome.runtime.onMessageExternal) {
     chrome.runtime.onMessageExternal.addListener((message, sender, sendResponse) => {
       if (!message || message.namespace !== 'VWS') return;
-      dispatch(message).then(sendResponse);
+      dispatch(message, sender?.tab?.windowId).then(sendResponse);
       return true;
     });
   }

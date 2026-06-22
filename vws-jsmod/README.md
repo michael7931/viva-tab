@@ -12,7 +12,7 @@ bash install.sh
 
 脚本仅支持默认安装位置 `/Applications/Vivaldi.app`，会请求管理员权限并修改 Vivaldi 的 `window.html`。执行完成后，完全退出并重新打开 Vivaldi。
 
-可在 `vivaldi://inspect/#apps` 中打开 `main.html` 的控制台，运行以下命令验证：
+可在 `vivaldi://inspect/#apps` 中打开 URL 为 `chrome-extension://mpognobbkildjkofajifpdfhcoklimli/window.html` 的 `window.html` 控制台，运行以下命令验证：
 
 ```js
 window.vwsBridge.version

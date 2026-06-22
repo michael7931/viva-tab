@@ -1,7 +1,15 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { archiveOperationFilename, canonicalSessionId, createSingleFlight, normalizeTabId, tabSummary } = require('../vws-jsmod/workspace-tab-utils.js');
+const { archiveOperationFilename, canonicalSessionId, createSingleFlight, normalizeTabId, resolveTargetWindowId, tabSummary } = require('../vws-jsmod/workspace-tab-utils.js');
+
+test('uses the external sender window over a caller-provided window', () => {
+  assert.equal(resolveTargetWindowId(320298894, 320298870), 320298894);
+});
+
+test('uses the requested window when a local console call has no sender', () => {
+  assert.equal(resolveTargetWindowId(undefined, 320298894), 320298894);
+});
 
 test('gives concurrent stashes of the same workspace and tabs one session filename', () => {
   assert.equal(
