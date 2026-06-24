@@ -1,95 +1,97 @@
 # viva tab
 
-面向 **Vivaldi 工作区（Workspaces）** 的标签页收纳工具。
+[中文文档](./README_zh.md)
 
-OneTab 适合按窗口管理标签页，但不了解 Vivaldi 的工作区结构；`viva tab` 以工作区为单位收纳标签页，并保留归档所属工作区的信息。
+A tab organizer for **Vivaldi Workspaces**.
+
+OneTab is well suited to organizing tabs by window, but it is not aware of Vivaldi's workspace structure. `viva tab` organizes tabs by workspace and preserves the workspace associated with each archive.
 
 > [!WARNING]
-> Vivaldi 尚未开放工作区相关的正式扩展 API。为读取和还原工作区，本项目需要额外安装 JSMod，并依赖 Vivaldi 的内部 API。因此它可能随 Vivaldi 更新失效，使用前请自行评估风险。
+> Vivaldi does not provide an official API for workspaces. To read and restore workspaces, this project requires an additional JSMod installation and depends on Vivaldi internal APIs. It may stop working after Vivaldi updates; assess the risk before using it.
 
-## 开发环境
+## Development environment
 
-| 项目 | 版本 |
+| Item | Version |
 | --- | --- |
-| 操作系统 | macOS 15.7.7 |
-| 浏览器 | Vivaldi 8.0.4033.50 |
+| Operating system | macOS 15.7.7 |
+| Browser | Vivaldi 8.0.4033.50 |
 
-## 功能
+## Features
 
-- 收纳当前工作区或指定工作区的标签页。
-- 按工作区查看归档，支持搜索归档标题、标签页标题和网址。
-- 还原整个归档、还原并删除归档，或打开其中单个标签页。
-- 在指定工作区中打开归档页后，将归档恢复到当前工作区。
-- 可设置归档保留策略、重复 URL、固定标签页、右键菜单和工具栏图标行为。
-- 支持清理异常遗留的临时归档，并复制调试信息。
+- Archive tabs from the current workspace or a specified workspace.
+- Browse archives by workspace and search archive titles, tab titles, and URLs.
+- Restore an entire archive, restore and delete an archive, or open individual tabs from it.
+- Restore an archive into the current workspace after opening the archive page from the target workspace.
+- Configure archive retention, duplicate URLs, pinned tabs, context menus, and toolbar icon behavior.
+- Remove leftover temporary archives and copy debug information.
 
-## 安装
+## Installation
 
-必须完成以下两步；只安装浏览器扩展无法访问 Vivaldi 的工作区。
+Both steps are required. Installing only the browser extension does not grant access to Vivaldi workspaces.
 
-### 1. 安装浏览器扩展
+### 1. Install the browser extension
 
-1. 在 Vivaldi 地址栏打开 `vivaldi://extensions`。
-2. 开启右上角的「开发者模式」。
-3. 将 [`vws-extension`](./vws-extension) 目录拖入该页面，或点击「加载已解压的扩展程序」并选择该目录。
-4. 固定 `viva tab` 的工具栏图标（可选）。
+1. Open `vivaldi://extensions` in the Vivaldi address bar.
+2. Enable **Developer mode** in the upper-right corner.
+3. Drag the [`vws-extension`](./vws-extension) directory onto the page, or click **Load unpacked** and select that directory.
+4. Optionally pin the `viva tab` toolbar icon.
 
-### 2. 安装 JSMod（macOS）
+### 2. Install JSMod (macOS)
 
-关闭 Vivaldi 后，在终端执行：
+Quit Vivaldi, then run the following in a terminal:
 
 ```bash
 cd /path/to/viva-tab/vws-jsmod
 bash install.sh
 ```
 
-脚本会请求管理员权限，并将桥接脚本写入默认位置的 `/Applications/Vivaldi.app`。完成后请**完全退出并重新打开 Vivaldi**，不能只关闭窗口。
+The script requests administrator privileges and writes the bridge script to the default `/Applications/Vivaldi.app` installation. When it finishes, **fully quit and reopen Vivaldi**; closing the window alone is not enough.
 
-安装完成后，点击扩展图标；状态显示“已连接 JSMod”即表示配置可用。
+After installation, click the extension icon. The configuration is ready when the status reads “Connected to JSMod”.
 
 > [!NOTE]
-> 当前 `install.sh` 仅适用于安装在 `/Applications/Vivaldi.app` 的 macOS 版 Vivaldi。Linux、Windows 或自定义安装路径需要手动适配脚本后再使用。
+> The current `install.sh` supports only the macOS version of Vivaldi installed at `/Applications/Vivaldi.app`. Linux, Windows, and custom installation paths require manual adaptation of the script.
 
-## 使用方式
+## Usage
 
-1. 打开扩展弹窗或归档页，选择「收纳当前工作区」；被收纳的标签页会从当前工作区关闭。
-2. 在归档页按工作区筛选，或搜索归档与网址。
-3. 如需将归档恢复到原工作区，请先在 Vivaldi 中手动切换到该工作区，再在该工作区打开 `viva tab` 并选择「全部还原」或「还原并删除」。也可以点击单个标签页恢复。
-4. 在「设置」中调整还原后是否删除归档、是否收纳固定标签页、是否允许重复 URL 等选项。
+1. Open the extension popup or archive page, then select **Archive current workspace**. Archived tabs are closed from the current workspace.
+2. Filter archives by workspace or search archives and URLs on the archive page.
+3. To restore an archive to its original workspace, manually switch to that workspace in Vivaldi, then open `viva tab` from that workspace and choose **Restore all** or **Restore and delete**. You can also restore individual tabs.
+4. Adjust whether restored archives are deleted, whether pinned tabs are archived, whether duplicate URLs are allowed, and other options in **Settings**.
 
-## 更新
+## Updating
 
-每次发版时，请根据变更范围执行对应操作：
+For each release, carry out the action corresponding to the changed files:
 
-| 变更范围 | 必须执行的操作 |
+| Changed files | Required action |
 | --- | --- |
-| `vws-extension/**` | 在 `vivaldi://extensions` 中重新加载扩展。 |
-| `vws-jsmod/**` | 重新运行 `bash vws-jsmod/install.sh` 覆盖安装 JSMod，然后完全退出并重启 Vivaldi。 |
+| `vws-extension/**` | Reload the extension in `vivaldi://extensions`. |
+| `vws-jsmod/**` | Run `bash vws-jsmod/install.sh` again to overwrite the installed JSMod, then fully quit and restart Vivaldi. |
 
-若同一版本同时修改两个目录，两个操作都必须执行。Vivaldi 本身升级后也可能覆盖 JSMod；此时即使扩展未变更，也需要重新运行安装脚本并重启浏览器。
+If both directories change in the same release, both actions are required. A Vivaldi upgrade can also overwrite JSMod; in that case, rerun the installation script and restart the browser even if the extension itself has not changed.
 
-## 项目结构
+## Project structure
 
-| 目录 | 职责 |
+| Directory | Responsibility |
 | --- | --- |
-| [`vws-extension`](./vws-extension) | Manifest V3 扩展，提供弹窗、归档页、设置及右键菜单。 |
-| [`vws-jsmod`](./vws-jsmod) | 注入 Vivaldi `window.html` 的桥接脚本，用内部 API 处理工作区和会话归档。 |
+| [`vws-extension`](./vws-extension) | Manifest V3 extension providing the popup, archive page, settings, and context menu. |
+| [`vws-jsmod`](./vws-jsmod) | Bridge script injected into Vivaldi's `window.html`; it uses internal APIs to manage workspaces and session archives. |
 
-## 已知限制
+## Known limitations
 
-- 没有公开 API 支持工作区，因此实现依赖未公开、可能变动的 Vivaldi 内部接口。
-- **自动恢复到归档所属的原工作区尚未实现。** Workspaces API 未开放，当前需要先手动切换到目标工作区，再从该工作区打开 `viva tab` 执行恢复。
-- 归档使用 Vivaldi 的会话数据保存，不是独立的云同步或备份系统。
-- 运行 JSMod 需要修改应用程序资源；Vivaldi 升级、重装或完整性校验都可能使其失效。
+- There is no public workspace API, so the implementation relies on undocumented Vivaldi internal interfaces that may change.
+- **Automatically restoring to an archive's original workspace is not implemented.** Because the Workspaces API is unavailable, you must first manually switch to the target workspace, then open `viva tab` there and perform the restore.
+- Archives use Vivaldi session data. They are not an independent cloud-sync or backup system.
+- JSMod modifies application resources; Vivaldi upgrades, reinstallation, or integrity checks can make it stop working.
 
-## 排障
+## Troubleshooting
 
-| 现象 | 处理方式 |
+| Symptom | Resolution |
 | --- | --- |
-| 提示“JSMod 没有响应” | 重新运行 `vws-jsmod/install.sh`，然后完全退出并重启 Vivaldi。 |
-| 安装脚本找不到 Vivaldi | 确认应用位于 `/Applications/Vivaldi.app`，或按实际安装路径修改 `install.sh`。 |
-| 工作区还原结果异常 | 在归档页点击「复制调试信息」，并保留 Vivaldi 版本、复现步骤和该调试信息。 |
+| “JSMod is not responding” | Run `vws-jsmod/install.sh` again, then fully quit and restart Vivaldi. |
+| The installation script cannot find Vivaldi | Confirm that the application is located at `/Applications/Vivaldi.app`, or update `install.sh` for the actual installation path. |
+| Workspace restore results are unexpected | On the archive page, click **Copy debug information** and retain the Vivaldi version, reproduction steps, and copied debug output. |
 
-## 免责声明
+## Disclaimer
 
-本项目会修改 Vivaldi 的应用资源并调用未公开接口。请在重要数据操作前保留浏览器会话或书签备份；因浏览器更新、接口变化或异常还原造成的数据问题需由使用者自行承担风险。
+This project modifies Vivaldi application resources and calls undocumented interfaces. Before working with important data, back up browser sessions or bookmarks. Users are responsible for data issues caused by browser updates, interface changes, or failed restores.

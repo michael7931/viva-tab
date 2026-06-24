@@ -2,7 +2,7 @@
   if (window.__VWS_BRIDGE_LOADED__) return;
   window.__VWS_BRIDGE_LOADED__ = true;
 
-  const MOD = 'v2.4.5-bridge';
+  const MOD = 'v2.4.6-bridge';
   const NAME_PREFIX = 'VWS:';
   const EXTERNAL_LEASE_PREFIX = 'vws:external-lease:';
   const EXTERNAL_LEASE_WAIT_MS = 160;
@@ -64,20 +64,23 @@
     return item;
   }
 
-  async function reconcileDuplicateArchive(filename, currentId) {
-    await sleep(120);
-    const all = await getAllSessions();
-    const canonicalId = VWSWorkspaceTabUtils.canonicalSessionId(all.items, filename);
+  async function reconcileDuplicateArchive(operationKey, currentId) {
+    let all;
+    for (let attempt = 0; attempt < 4; attempt += 1) {
+      await sleep(150);
+      all = await getAllSessions();
+    }
+    const canonicalId = VWSWorkspaceTabUtils.canonicalSessionIdByOperationKey(all.items, operationKey);
     if (canonicalId === null) return Number(currentId);
     const duplicateIds = (all.items || [])
-      .filter(item => item.filename === filename)
+      .filter(item => VWSWorkspaceTabUtils.archiveOperationKeyFromSessionName(item.name) === operationKey)
       .map(item => Number(item.id))
       .filter(id => Number.isSafeInteger(id) && id >= 0 && id !== canonicalId);
     for (const id of duplicateIds) {
       try { await deleteSession(id); }
-      catch (e) { dbg('duplicate archive delete failed', { id, filename, error: e.message || String(e) }); }
+      catch (e) { dbg('duplicate archive delete failed', { id, operationKey, error: e.message || String(e) }); }
     }
-    if (Number(currentId) !== canonicalId) dbg('duplicate archive coalesced', { currentId, canonicalId, filename });
+    if (Number(currentId) !== canonicalId) dbg('duplicate archive coalesced', { currentId, canonicalId, operationKey });
     return canonicalId;
   }
 
@@ -88,6 +91,10 @@
 
 
   const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+  function createOperationId(prefix) {
+    return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
 
   async function claimExternalRequest(message, sender) {
     const requestKey = VWSWorkspaceTabUtils.externalRequestKey(message, sender);
@@ -344,7 +351,7 @@
     return urls;
   }
 
-  async function stashWorkspaceNow({ workspaceId, targetWindowId = null, closeTabs = true, includePinned = false, allowDuplicates = true, extensionId = '' } = {}) {
+  async function stashWorkspaceNow({ workspaceId, targetWindowId = null, closeTabs = true, includePinned = false, allowDuplicates = true, extensionId = '', requestId, writerId } = {}) {
     state.lastDebug = [];
     dbg('stashWorkspace start', { workspaceId, targetWindowId, closeTabs, includePinned, allowDuplicates, extensionId });
     const snap = await collectWorkspaceSnapshot(targetWindowId);
@@ -370,18 +377,25 @@
       }
       if (!ids.length) throw new Error('该工作区没有可收纳标签，可能全部是固定标签或重复项');
       const all = await getAllSessions();
+      const operationKey = VWSWorkspaceTabUtils.archiveOperationKey(requestId);
+      const existingId = VWSWorkspaceTabUtils.canonicalSessionIdByOperationKey(all.items, operationKey);
+      if (existingId !== null) {
+        try { await deleteSession(snap.temp.id); } catch (e) { dbg('temp delete failed', e.message || e); }
+        dbg('existing archive reused', { id: existingId, operationKey });
+        return { ok: true, archiveId: existingId, workspaceId: selected.id, workspaceName: selected.name, tabs: ids.length };
+      }
       const now = new Date();
       const label = `${NAME_PREFIX}${selected.name} · ${ids.length}个标签页 · ${now.toLocaleString()}`;
-      const archiveFilename = VWSWorkspaceTabUtils.archiveOperationFilename(selected.id, ids, now.getTime());
+      const archiveName = VWSWorkspaceTabUtils.archiveSessionName(label, operationKey, writerId);
       const archiveItem = await addSessionAndFind({
-        filename: archiveFilename,
-        name: label,
+        filename: 'vws-' + writerId,
+        name: archiveName,
         parentId: all.rootId || snap.temp.rootId || 2,
         index: 0,
         owner: 'user',
         ids,
       });
-      const canonicalArchiveId = await reconcileDuplicateArchive(archiveFilename, archiveItem.id);
+      const canonicalArchiveId = await reconcileDuplicateArchive(operationKey, archiveItem.id);
       try { await deleteSession(snap.temp.id); } catch (e) { dbg('temp delete failed', e.message || e); }
       if (closeTabs && canonicalArchiveId === archiveItem.id) {
         await createNativeNewTabBeforeClose(ids, snap.temp.activeWinId);
@@ -396,13 +410,15 @@
   }
 
   function stashWorkspace(options = {}) {
-    const key = `${options.targetWindowId || 'focused'}:${options.workspaceId || 'active'}`;
-    return runStashOnce(key, () => stashWorkspaceNow(options));
+    const requestId = options.requestId || createOperationId('local-stash');
+    const writerId = options.writerId || createOperationId('writer');
+    return runStashOnce(`${requestId}:${writerId}`, () => stashWorkspaceNow({ ...options, requestId, writerId }));
   }
 
   function parseArchiveName(name) {
-    const restored = String(name || '').startsWith('已恢复 · ');
-    const n = String(name || '').replace(/^已恢复 · /, '').replace(NAME_PREFIX, '');
+    const label = VWSWorkspaceTabUtils.archiveSessionLabel(name);
+    const restored = label.startsWith('已恢复 · ');
+    const n = label.replace(/^已恢复 · /, '').replace(NAME_PREFIX, '');
     const parts = n.split(' · ');
     return {
       displayName: n,
@@ -557,8 +573,8 @@
     const targetWindowId = VWSWorkspaceTabUtils.resolveTargetWindowId(senderWindowId, message.targetWindowId);
     if (cmd === 'PING') return { ok: true, version: MOD };
     if (cmd === 'GET_WORKSPACES') return getWorkspaces(targetWindowId);
-    if (cmd === 'STASH_ACTIVE') return stashWorkspace({ workspaceId: 'active', targetWindowId, closeTabs: message.closeTabs !== false, includePinned: !!message.includePinned, allowDuplicates: message.allowDuplicates !== false, extensionId: message.extensionId || '' });
-    if (cmd === 'STASH_WORKSPACE') return stashWorkspace({ workspaceId: message.workspaceId, targetWindowId, closeTabs: message.closeTabs !== false, includePinned: !!message.includePinned, allowDuplicates: message.allowDuplicates !== false, extensionId: message.extensionId || '' });
+    if (cmd === 'STASH_ACTIVE') return stashWorkspace({ workspaceId: 'active', targetWindowId, closeTabs: message.closeTabs !== false, includePinned: !!message.includePinned, allowDuplicates: message.allowDuplicates !== false, extensionId: message.extensionId || '', requestId: message.requestId });
+    if (cmd === 'STASH_WORKSPACE') return stashWorkspace({ workspaceId: message.workspaceId, targetWindowId, closeTabs: message.closeTabs !== false, includePinned: !!message.includePinned, allowDuplicates: message.allowDuplicates !== false, extensionId: message.extensionId || '', requestId: message.requestId });
     if (cmd === 'GET_ARCHIVES') return getArchives();
     if (cmd === 'RESTORE_ARCHIVE') return openArchive({ id: message.id, removeAfter: false, targetWindowId: message.targetWindowId, newWindow: !!message.newWindow });
     if (cmd === 'RESTORE_DELETE_ARCHIVE') return openArchive({ id: message.id, removeAfter: true, targetWindowId: message.targetWindowId, newWindow: !!message.newWindow });

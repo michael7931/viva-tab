@@ -1,7 +1,7 @@
 const assert = require('node:assert/strict');
 const test = require('node:test');
 
-const { archiveOperationFilename, canonicalSessionId, createSingleFlight, externalRequestKey, normalizeTabId, resolveTargetWindowId, tabSummary } = require('../vws-jsmod/workspace-tab-utils.js');
+const { archiveOperationFilename, archiveOperationKey, archiveOperationKeyFromSessionName, archiveSessionLabel, archiveSessionName, canonicalSessionId, canonicalSessionIdByOperationKey, createSingleFlight, externalRequestKey, normalizeTabId, resolveTargetWindowId, tabSummary } = require('../vws-jsmod/workspace-tab-utils.js');
 
 test('gives every window context the same key for one external request', () => {
   const message = { cmd: 'STASH_WORKSPACE', workspaceId: '1777528461398' };
@@ -37,6 +37,35 @@ test('chooses the oldest session ID for duplicate archive filenames', () => {
     { id: 593, filename: 'vws-op-1-7-42-1' },
     { id: 592, filename: 'vws-op-other' },
   ], 'vws-op-1-7-42-1'), 593);
+});
+
+test('当 Session 缺失 filename 时仍按操作键找到最早归档', () => {
+  const key = archiveOperationKey('stash-request-42');
+  const name = archiveSessionName('VWS:公务 · 2个标签页 · now', key);
+  assert.equal(canonicalSessionIdByOperationKey([
+    { id: 826, name, filename: undefined },
+    { id: 825, name, filename: undefined },
+  ], key), 825);
+});
+
+test('同一次收纳请求不因标签快照差异改变操作键', () => {
+  assert.equal(
+    archiveOperationKey('stash-request-42', [7, 42]),
+    archiveOperationKey('stash-request-42', [7]),
+  );
+});
+
+test('从归档展示名称中移除内部操作键', () => {
+  const name = archiveSessionName('VWS:公务 · 1个标签页 · now', '42:7');
+  assert.equal(archiveSessionLabel(name), 'VWS:公务 · 1个标签页 · now');
+});
+
+test('同一次收纳的不同写入者保留同一操作键但使用不同 Session 名称', () => {
+  const first = archiveSessionName('VWS:公务 · 1个标签页 · now', 'stash-request-42', 'writer-a');
+  const second = archiveSessionName('VWS:公务 · 1个标签页 · now', 'stash-request-42', 'writer-b');
+  assert.notEqual(first, second);
+  assert.equal(archiveOperationKeyFromSessionName(first), 'stash-request-42');
+  assert.equal(archiveOperationKeyFromSessionName(second), 'stash-request-42');
 });
 
 test('coalesces concurrent operations for the same workspace', async () => {
